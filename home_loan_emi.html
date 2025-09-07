@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home Loan EMI Calculator - Kid Friendly</title>
+  <!-- Chart.js + Data Labels Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <style>
+    :root {
+      --primary-color: #ff6347;
+      --secondary-color: #ffa500;
+      --accent-color: #2ecc71;
+      --background-color: #fffbe6;
+      --card-bg: #ffffff;
+      --text-color: #333;
+      --border-radius: 12px;
+    }
+    body {
+      font-family: 'Comic Sans MS', cursive, Arial, sans-serif;
+      background-color: var(--background-color);
+      margin: 0; padding: 20px;
+      display: flex; justify-content: center; align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      background: var(--card-bg);
+      padding: 25px;
+      border-radius: var(--border-radius);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+      width: 100%; max-width: 650px;
+    }
+    h1 { text-align: center; color: var(--primary-color); }
+    .form-group { margin-bottom: 20px; }
+    label { font-weight: bold; color: var(--secondary-color); }
+    input[type="number"], input[type="range"] {
+      width: 100%; padding: 10px;
+      border: 2px solid var(--secondary-color);
+      border-radius: var(--border-radius);
+      background: #fdf2e9;
+    }
+    .slider-value { margin-top: 5px; text-align: center; color: var(--primary-color); }
+    button {
+      width: 100%; padding: 14px;
+      background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+      color: #fff; border: none; border-radius: var(--border-radius);
+      font-size: 1.1rem; font-weight: bold; cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    .results { margin-top: 20px; display: none; }
+    .result-item { margin: 8px 0; font-size: 1.1rem; }
+    .chart-container {
+      margin-top: 20px;
+      padding: 15px;
+      border: 2px dashed var(--accent-color);
+      border-radius: var(--border-radius);
+      background: #fafafa;
+    }
+    canvas { width: 100% !important; max-height: 400px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Home Loan EMI Calculator</h1>
+    <div class="form-group">
+      <label for="principal">Loan Amount (Principal)</label>
+      <input type="number" id="principal" placeholder="Enter principal amount" />
+    </div>
+    <div class="form-group">
+      <label for="interest">Annual Interest Rate (%)</label>
+      <input type="number" id="interest" placeholder="Enter annual interest rate" />
+    </div>
+    <div class="form-group">
+      <label for="yearsRange">Loan Term (Years)</label>
+      <input type="range" id="yearsRange" min="1" max="30" step="1" value="20" />
+      <div class="slider-value">Selected Term: <span id="yearsValue">20</span> years</div>
+    </div>
+    <button id="calculateBtn">Calculate EMI</button>
+
+    <div id="results" class="results">
+      <div class="result-item" id="monthlyEmi"></div>
+      <div class="result-item" id="totalPayment"></div>
+      <div class="result-item" id="totalInterest"></div>
+
+      <div class="chart-container">
+        <h2 style="text-align:center;color:var(--primary-color);">Principal vs Interest (Pie)</h2>
+        <canvas id="pieChart"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <h2 style="text-align:center;color:var(--primary-color);">Monthly Principal & Interest Breakdown</h2>
+        <canvas id="breakdownChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-IN', {
+        minimumFractionDigits: 0, maximumFractionDigits: 0
+      }).format(amount);
+    }
+
+    const yearsRange = document.getElementById('yearsRange');
+    const yearsValue = document.getElementById('yearsValue');
+    yearsRange.addEventListener('input', () => yearsValue.textContent = yearsRange.value);
+
+    let pieChartInstance = null;
+    let breakdownChartInstance = null;
+
+    document.getElementById('calculateBtn').addEventListener('click', function() {
+      const principal = parseFloat(document.getElementById('principal').value);
+      const annualRate = parseFloat(document.getElementById('interest').value);
+      const years = parseInt(yearsRange.value, 10);
+
+      if (isNaN(principal) || isNaN(annualRate) || principal <= 0 || years <= 0) {
+        alert('Please enter valid values!');
+        return;
+      }
+
+      const n = years * 12;
+      const r = annualRate / 12 / 100;
+      let emi;
+      if (r === 0) { emi = principal / n; }
+      else {
+        const factor = Math.pow(1 + r, n);
+        emi = (principal * r * factor) / (factor - 1);
+      }
+      const totalPayment = emi * n;
+      const totalInterest = totalPayment - principal;
+
+      document.getElementById('monthlyEmi').textContent = `Monthly EMI: ₹${formatCurrency(emi)}`;
+      document.getElementById('totalPayment').textContent = `Total Repayment: ₹${formatCurrency(totalPayment)}`;
+      document.getElementById('totalInterest').textContent = `Total Interest: ₹${formatCurrency(totalInterest)}`;
+      document.getElementById('results').style.display = 'block';
+
+      if (pieChartInstance) pieChartInstance.destroy();
+      if (breakdownChartInstance) breakdownChartInstance.destroy();
+
+      // Pie Chart with Values
+      const pieCtx = document.getElementById('pieChart').getContext('2d');
+      pieChartInstance = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Principal', 'Interest'],
+          datasets: [{
+            data: [principal, totalInterest],
+            backgroundColor: ['#ff9999','#66b3ff']
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { position: 'bottom' },
+            datalabels: {
+              color: '#000',
+              font: { weight: 'bold', size: 14 },
+              formatter: (value, ctx) => '₹' + formatCurrency(value)
+            }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+
+      // Monthly Breakdown Chart
+      let remainingPrincipal = principal;
+      const principalParts = [], interestParts = [], labels = [];
+      for (let m = 1; m <= n; m++) {
+        const interestForMonth = remainingPrincipal * r;
+        const principalForMonth = emi - interestForMonth;
+        remainingPrincipal -= principalForMonth;
+        principalParts.push(principalForMonth.toFixed(0));
+        interestParts.push(interestForMonth.toFixed(0));
+        labels.push(`M${m}`);
+      }
+      const breakdownCtx = document.getElementById('breakdownChart').getContext('2d');
+      breakdownChartInstance = new Chart(breakdownCtx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Principal', data: principalParts,
+              backgroundColor: 'rgba(255, 159, 64, 0.7)' },
+            { label: 'Interest', data: interestParts,
+              backgroundColor: 'rgba(75, 192, 192, 0.7)' }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { stacked: true, ticks: { autoSkip: true, maxTicksLimit: 12 } },
+            y: { stacked: true, beginAtZero: true }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
